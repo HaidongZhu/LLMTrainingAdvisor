@@ -35,7 +35,7 @@ final class DashboardService {
 
     init(
         costTracker: CostTracker = .shared,
-        deepSeekService: DeepSeekService = DeepSeekClient(apiKey: AppConfig.deepSeekAPIKey),
+        deepSeekService: DeepSeekService = DeepSeekClient(keyProvider: { AppConfig.deepSeekAPIKey }),
         onCostChanged: ((Double) -> Void)? = nil
     ) {
         self.costTracker = costTracker

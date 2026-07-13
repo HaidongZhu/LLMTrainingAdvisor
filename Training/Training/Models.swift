@@ -50,9 +50,24 @@ struct TokenUsage: Codable {
 }
 
 enum AppConfig {
-    static let deepSeekAPIKey = Secrets.deepSeekAPIKey
-    static let deepSeekModel = "deepseek-v4-pro"
+    static let defaultModel = "deepseek-v4-pro"
+    static let apiKeyAccount = "deepseek_api_key"
+    static let modelDefaultsKey = "deepseek_model"
     static let isSelfTestMode = false
+
+    /// 运行时 API Key，线程安全（Keychain 优先，兜底 Secrets 中的有效 key）。
+    /// 供 DeepSeekClient 的 keyProvider 在任意线程同步读取。
+    static var deepSeekAPIKey: String {
+        if let stored = KeychainStore.read(forKey: apiKeyAccount), !stored.isEmpty {
+            return stored
+        }
+        return Secrets.deepSeekAPIKey.hasPrefix("sk-") ? Secrets.deepSeekAPIKey : ""
+    }
+
+    /// 运行时模型名，用户可在设置页修改（存 UserDefaults）。
+    static var deepSeekModel: String {
+        UserDefaults.standard.string(forKey: modelDefaultsKey) ?? defaultModel
+    }
 }
 
 struct MatchSchedule: Codable, Identifiable {

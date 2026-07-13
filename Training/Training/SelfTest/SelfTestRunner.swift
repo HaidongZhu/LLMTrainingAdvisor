@@ -53,7 +53,7 @@ final class SelfTestRunner {
         registry.register(MatchScheduleTool(store: db))
         registry.register(SetUserProfileTool(store: db))
         return ChatViewModel(
-            deepSeekService: DeepSeekClient(apiKey: AppConfig.deepSeekAPIKey),
+            deepSeekService: DeepSeekClient(keyProvider: { AppConfig.deepSeekAPIKey }),
             messageStore: db,
             costTracker: CostTracker.shared,
             toolRegistry: registry
@@ -80,7 +80,7 @@ final class SelfTestRunner {
         registry.register(MatchScheduleTool(store: db))
         registry.register(SetUserProfileTool(store: db))
         return ChatViewModel(
-            deepSeekService: DeepSeekClient(apiKey: AppConfig.deepSeekAPIKey),
+            deepSeekService: DeepSeekClient(keyProvider: { AppConfig.deepSeekAPIKey }),
             messageStore: db,
             costTracker: CostTracker.shared,
             toolRegistry: registry

@@ -31,21 +31,31 @@ struct DeepSeekResponse: Codable {
 }
 
 actor DeepSeekClient {
-    private let apiKey: String
+    private let keyProvider: @Sendable () -> String
     private let baseURL: URL
     private let session: URLSession
     private let timeoutInterval: TimeInterval
 
+    init(
+        keyProvider: @escaping @Sendable () -> String,
+        baseURL: URL = URL(string: "https://api.deepseek.com/chat/completions")!,
+        session: URLSession = .shared,
+        timeoutInterval: TimeInterval = 30
+    ) {
+        self.keyProvider = keyProvider
+        self.baseURL = baseURL
+        self.session = session
+        self.timeoutInterval = timeoutInterval
+    }
+
+    /// 便捷初始化：固定 key（测试用）。转发到 keyProvider 形式。
     init(
         apiKey: String,
         baseURL: URL = URL(string: "https://api.deepseek.com/chat/completions")!,
         session: URLSession = .shared,
         timeoutInterval: TimeInterval = 30
     ) {
-        self.apiKey = apiKey
-        self.baseURL = baseURL
-        self.session = session
-        self.timeoutInterval = timeoutInterval
+        self.init(keyProvider: { apiKey }, baseURL: baseURL, session: session, timeoutInterval: timeoutInterval)
     }
 
     func chat(
@@ -95,7 +105,7 @@ actor DeepSeekClient {
     private func performRequest(model: String, messages: [[String: String]], temperature: Double, maxTokens: Int, timeoutInterval: TimeInterval) async throws -> (content: String, usage: TokenUsage) {
         var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(keyProvider())", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = timeoutInterval
 
@@ -178,7 +188,7 @@ actor DeepSeekClient {
     ) async throws -> TokenUsage {
         var request = URLRequest(url: baseURL)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(keyProvider())", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = timeoutInterval
 

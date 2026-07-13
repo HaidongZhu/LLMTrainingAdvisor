@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var exerciseMin: Int = 0
     @State private var recovery: String = ""
     @State private var lastUserId: UUID?
+    @State private var showSettings = false
     private let healthStore = HKHealthStore()
     private let timer = Timer.publish(every: 600, on: .main, in: .common).autoconnect()
 
@@ -28,6 +29,9 @@ struct ContentView: View {
                 Text("\u{1FAC1} \(String(format: "%.1f", vo2max))").font(.caption2)
                 Text("\u{1F3C3} \(exerciseMin)m").font(.caption2)
                 Text(recovery).font(.caption2)
+                Button { showSettings = true } label: {
+                    Image(systemName: "gearshape").font(.caption2)
+                }
             }
             .padding(.vertical, 6).frame(maxWidth: .infinity).background(.ultraThinMaterial)
 
@@ -84,6 +88,7 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, new in if new == .active { Task { await refreshStatusBar(); await autoRefreshDashboard() } } }
         .onChange(of: viewModel.selectedTab) { _, new in if new == 4 { Task { await refreshStatusBar() } } }
         .onReceive(timer) { _ in Task { await autoRefreshDashboard() } }
+        .sheet(isPresented: $showSettings) { SettingsView() }
     }
 
     private func isActiveSystem(message: ChatMessage) -> Bool {

@@ -1,0 +1,18 @@
+.build/
+DerivedData/
+*.xcodeproj/
+xcuserdata/
+*.db
+*.db-shm
+*.db-wal
+artifacts/
+*.tar.gz
+
+Training/Training/Secrets.swift
+
+# 内部工具 / 环境绑定工件（含内部 project id、用户名，勿提交）
+.aide-bind.json
+.aide-ai-report
+.claude
+.env
+.env.*

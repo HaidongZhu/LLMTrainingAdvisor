@@ -148,7 +148,7 @@ run_selftest() {
     mkdir -p "$RESULT_DIR"
     echo "Artifacts: $RESULT_DIR"
 
-    echo "[1/3] XCUITest 运行 7 个自测场景..."
+    echo "[1/3] XCUITest 运行 16 个自测场景..."
     cd "$PROJECT"
     xcodebuild test \
         -project Training.xcodeproj \
@@ -160,7 +160,7 @@ run_selftest() {
         2>&1 | grep -E "Test Case.*(passed|failed)|TEST (SUCCEEDED|FAILED)" || true
 
     echo "[2/3] 拉取自测日志..."
-    for i in 0 1 2 3 4 5 6 7 8; do
+    for i in {0..15}; do
         xcrun devicectl device copy from \
             --device "$UDID" \
             --domain-type appDataContainer \
@@ -190,7 +190,9 @@ run_selftest() {
 generate_report() {
     local DIR="$1"
     local DATE=$(date "+%Y-%m-%d %H:%M")
-    local names=("恢复查询" "训练计划" "睡眠分析" "记录运动 1" "记录运动 2" "综合查询" "单日数据" "比赛工具" "比赛注入")
+    local names=("恢复查询" "训练计划" "睡眠分析" "记录运动 1" "记录运动 2" \
+      "综合查询" "单日数据" "比赛工具" "比赛注入" "昨天比赛表现" \
+      "今天状态" "今天0点至今" "查昨天RHR" "查前天RHR" "7天RHR表" "赛后恢复")
 
     local REPORT="$DIR/report.md"
 
@@ -203,7 +205,7 @@ generate_report() {
 |---|------|------|
 EOF
 
-    for i in 0 1 2 3 4 5 6 7 8; do
+    for i in {0..15}; do
         local status="❌ (未完成)"
         [ -f "$DIR/selftest-$i.log" ] && status="✅"
         echo "| $((i+1)) | ${names[$i]} | $status |" >> "$REPORT"
@@ -212,7 +214,7 @@ EOF
     echo "" >> "$REPORT"
     echo "## 场景详情" >> "$REPORT"
 
-    for i in 0 1 2 3 4 5 6 7 8; do
+    for i in {0..15}; do
         local logfile="$DIR/selftest-$i.log"
         if [ -f "$logfile" ]; then
             echo "" >> "$REPORT"
@@ -226,11 +228,11 @@ EOF
 
     local failed
     failed=$(find "$DIR" -maxdepth 1 -name "selftest-*.log" 2>/dev/null | wc -l | tr -d ' ')
-    if [ "$failed" -lt 9 ]; then
+    if [ "$failed" -lt 16 ]; then
         echo "" >> "$REPORT"
         echo "## 失败分析" >> "$REPORT"
         echo "以下场景未在超时时间内完成：" >> "$REPORT"
-        for i in 0 1 2 3 4 5 6 7 8; do
+        for i in {0..15}; do
             if [ ! -f "$DIR/selftest-$i.log" ]; then
                 echo "- **${names[$i]}**：未检测到 SELFTEST_DONE（超时或崩溃）" >> "$REPORT"
             fi

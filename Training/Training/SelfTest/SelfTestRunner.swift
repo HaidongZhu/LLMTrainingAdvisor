@@ -39,6 +39,25 @@ final class SelfTestRunner {
     private var logLines: [String] = []
     var singleScenarioIndex: Int? = nil
 
+    static let allScenarios: [SelfTestScenario] = [
+        SelfTestScenario(name: "恢复查询",   message: "我恢复得怎么样"),
+        SelfTestScenario(name: "训练计划",   message: "今天练什么"),
+        SelfTestScenario(name: "睡眠分析",   message: "最近一周睡眠质量如何"),
+        SelfTestScenario(name: "记录运动 1",  message: "", logActivityInput: "昨天踢球60分钟"),
+        SelfTestScenario(name: "记录运动 2",  message: "", logActivityInput: "前天跑步5公里"),
+        SelfTestScenario(name: "综合查询",   message: "这周我做了哪些运动"),
+        SelfTestScenario(name: "单日数据",   message: "今天走了多少步"),
+        SelfTestScenario(name: "比赛工具",   message: "我接下来有比赛吗", useMatchVM: true),
+        SelfTestScenario(name: "比赛注入",   message: "接下来一周训练怎么安排", useMatchVM: true),
+        SelfTestScenario(name: "昨天比赛表现", message: "我昨天比赛整体表现如何"),
+        SelfTestScenario(name: "今天状态",   message: "我今天状态怎么样"),
+        SelfTestScenario(name: "今天0点至今", message: "帮我看看今天0点到现在的身体状态"),
+        SelfTestScenario(name: "查昨天RHR", message: "我昨天的静息心率是多少"),
+        SelfTestScenario(name: "查前天RHR", message: "我前天的静息心率是多少"),
+        SelfTestScenario(name: "7天RHR表", message: "我最近7天每天的静息心率是多少"),
+        SelfTestScenario(name: "赛后恢复",   message: "我赛后恢复得怎么样"),
+    ]
+
     private func makeViewModel() -> ChatViewModel {
         let db = try! DatabaseService(databasePath: ":memory:")
         let registry = ToolRegistry()
@@ -94,27 +113,22 @@ final class SelfTestRunner {
         logLines = []
         cleanupLogs()
 
-        let scenarios: [SelfTestScenario] = [
-            SelfTestScenario(name: "恢复查询",   message: "我恢复得怎么样"),
-            SelfTestScenario(name: "训练计划",   message: "今天练什么"),
-            SelfTestScenario(name: "睡眠分析",   message: "最近一周睡眠质量如何"),
-            SelfTestScenario(name: "记录运动 1",  message: "", logActivityInput: "昨天踢球60分钟"),
-            SelfTestScenario(name: "记录运动 2",  message: "", logActivityInput: "前天跑步5公里"),
-            SelfTestScenario(name: "综合查询",   message: "这周我做了哪些运动"),
-            SelfTestScenario(name: "单日数据",   message: "今天走了多少步"),
-            SelfTestScenario(name: "比赛工具",   message: "我接下来有比赛吗", useMatchVM: true),
-            SelfTestScenario(name: "比赛注入",   message: "接下来一周训练怎么安排", useMatchVM: true),
-            SelfTestScenario(name: "昨天比赛表现", message: "我昨天比赛整体表现如何"),
-            SelfTestScenario(name: "今天状态",   message: "我今天状态怎么样"),
-            SelfTestScenario(name: "今天0点至今", message: "帮我看看今天0点到现在的身体状态"),
-            SelfTestScenario(name: "查昨天RHR", message: "我昨天的静息心率是多少"),
-            SelfTestScenario(name: "查前天RHR", message: "我前天的静息心率是多少"),
-            SelfTestScenario(name: "7天RHR表", message: "我最近7天每天的静息心率是多少"),
-            SelfTestScenario(name: "赛后恢复",   message: "我赛后恢复得怎么样"),
-        ]
+        let scenarios = SelfTestRunner.allScenarios
 
         results = scenarios.enumerated().map {
             SelfTestResult(name: $1.name, index: $0, status: .pending, detail: "", duration: "")
+        }
+
+        guard !AppConfig.deepSeekAPIKey.isEmpty else {
+            for i in scenarios.indices {
+                results[i].status = .error
+                results[i].detail = "API Key 缺失"
+            }
+            logLines.append("SELFTEST_DONE|0/\(scenarios.count) executed, \(scenarios.count) failed (API Key 缺失)")
+            writeLogFile()
+            isRunning = false
+            allDone = true
+            return
         }
 
         let vm = makeViewModel()
@@ -231,24 +245,7 @@ final class SelfTestRunner {
         cleanupLogs()
         singleScenarioIndex = index
 
-        let scenarios: [SelfTestScenario] = [
-            SelfTestScenario(name: "恢复查询",   message: "我恢复得怎么样"),
-            SelfTestScenario(name: "训练计划",   message: "今天练什么"),
-            SelfTestScenario(name: "睡眠分析",   message: "最近一周睡眠质量如何"),
-            SelfTestScenario(name: "记录运动 1",  message: "", logActivityInput: "昨天踢球60分钟"),
-            SelfTestScenario(name: "记录运动 2",  message: "", logActivityInput: "前天跑步5公里"),
-            SelfTestScenario(name: "综合查询",   message: "这周我做了哪些运动"),
-            SelfTestScenario(name: "单日数据",   message: "今天走了多少步"),
-            SelfTestScenario(name: "比赛工具",   message: "我接下来有比赛吗", useMatchVM: true),
-            SelfTestScenario(name: "比赛注入",   message: "接下来一周训练怎么安排", useMatchVM: true),
-            SelfTestScenario(name: "昨天比赛表现", message: "我昨天比赛整体表现如何"),
-            SelfTestScenario(name: "今天状态",   message: "我今天状态怎么样"),
-            SelfTestScenario(name: "今天0点至今", message: "帮我看看今天0点到现在的身体状态"),
-            SelfTestScenario(name: "查昨天RHR", message: "我昨天的静息心率是多少"),
-            SelfTestScenario(name: "查前天RHR", message: "我前天的静息心率是多少"),
-            SelfTestScenario(name: "7天RHR表", message: "我最近7天每天的静息心率是多少"),
-            SelfTestScenario(name: "赛后恢复",   message: "我赛后恢复得怎么样"),
-        ]
+        let scenarios = SelfTestRunner.allScenarios
 
         guard index < scenarios.count else { return }
         let scenario = scenarios[index]

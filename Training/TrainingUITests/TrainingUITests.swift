@@ -29,5 +29,12 @@ final class TrainingUITests: XCTestCase {
     @MainActor func test06_activityQuery()  { launchScenario(5, timeout: 60) }
     @MainActor func test07_steps()          { launchScenario(6, timeout: 45) }
     @MainActor func test08_matchTool()      { launchScenario(7, timeout: 60) }
-    @MainActor func test09_matchInjection() { launchScenario(8, timeout: 60) }
+    @MainActor func test09_matchInjection()     { launchScenario(8,  timeout: 60) }
+    @MainActor func test10_yesterdayMatchPerf()  { launchScenario(9,  timeout: 90) }
+    @MainActor func test11_todayStatus()         { launchScenario(10, timeout: 60) }
+    @MainActor func test12_todayMidnightNow()    { launchScenario(11, timeout: 60) }
+    @MainActor func test13_yesterdayRHR()        { launchScenario(12, timeout: 60) }
+    @MainActor func test14_dayBeforeRHR()        { launchScenario(13, timeout: 60) }
+    @MainActor func test15_sevenDayRHRTable()    { launchScenario(14, timeout: 60) }
+    @MainActor func test16_postMatchRecovery()   { launchScenario(15, timeout: 90) }
 }

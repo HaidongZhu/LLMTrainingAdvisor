@@ -13,7 +13,10 @@ final class AppSettings {
     }
 
     private init() {
-        Self.migrateSecretsIfNeeded()
+        if let stored = KeychainStore.read(forKey: AppConfig.apiKeyAccount),
+           stored == "sk-749179de25204853b06233beba10e945" {
+            KeychainStore.delete(forKey: AppConfig.apiKeyAccount)
+        }
         self.apiKey = KeychainStore.read(forKey: AppConfig.apiKeyAccount) ?? ""
         self.model = UserDefaults.standard.string(forKey: AppConfig.modelDefaultsKey) ?? AppConfig.defaultModel
     }
@@ -44,11 +47,4 @@ final class AppSettings {
         return ok
     }
 
-    /// 首启迁移：Keychain 为空且 Secrets 含有效 key（本地开发）时导入一次，保证已有安装无缝过渡。
-    private static func migrateSecretsIfNeeded() {
-        guard KeychainStore.read(forKey: AppConfig.apiKeyAccount) == nil else { return }
-        let secret = Secrets.deepSeekAPIKey
-        guard secret.hasPrefix("sk-") else { return }
-        KeychainStore.save(secret, forKey: AppConfig.apiKeyAccount)
-    }
 }

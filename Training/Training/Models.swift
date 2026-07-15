@@ -55,13 +55,10 @@ enum AppConfig {
     static let modelDefaultsKey = "deepseek_model"
     static let isSelfTestMode = false
 
-    /// 运行时 API Key，线程安全（Keychain 优先，兜底 Secrets 中的有效 key）。
+    /// 运行时 API Key，线程安全（只读 Keychain，空则返回空串）。
     /// 供 DeepSeekClient 的 keyProvider 在任意线程同步读取。
     static var deepSeekAPIKey: String {
-        if let stored = KeychainStore.read(forKey: apiKeyAccount), !stored.isEmpty {
-            return stored
-        }
-        return Secrets.deepSeekAPIKey.hasPrefix("sk-") ? Secrets.deepSeekAPIKey : ""
+        KeychainStore.read(forKey: apiKeyAccount) ?? ""
     }
 
     /// 运行时模型名，用户可在设置页修改（存 UserDefaults）。

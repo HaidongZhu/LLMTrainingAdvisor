@@ -32,8 +32,13 @@ struct MetricToolTests {
     func testMetricIDLookup() {
         #expect(MetricTool.id(for: "average_heart_rate") == .heartRate)
         #expect(MetricTool.id(for: "rhr") == .restingHeartRate)
+        #expect(MetricTool.id(for: "hrv") == .heartRateVariabilitySDNN)
         #expect(MetricTool.id(for: "steps") == .stepCount)
         #expect(MetricTool.id(for: "active_calories") == .activeEnergyBurned)
         #expect(MetricTool.id(for: "nonexistent_metric") == nil)
     }
 }
+// 验证边界标注：
+// fmt() 对 hrv 返回 "ms"、对 rhr/heart_rate 返回 "bpm" 的拆分
+// 无法在单测中验证（fmt 为 private，且 execute 无 HealthKit 数据时
+// 返回 "—"，不经过 fmt 路径），属"依赖真实跑起来后才能定"。

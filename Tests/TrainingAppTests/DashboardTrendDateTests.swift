@@ -13,4 +13,16 @@ struct DashboardTrendDateTests {
         #expect(!offsets.contains(0))  // 不含今天
         #expect(offsets.first == -1)   // 从昨天起
     }
+
+    @Test("trend inclusive 7 days contains today as first")
+    func testTrendInclusive7Days() {
+        // DashboardService 趋势表循环已改为 inclusive，含今天
+        let offsets = HealthDataService.dayOffsets(inclusiveDays: 7)
+        #expect(offsets.count == 7)
+        #expect(offsets.first == 0)  // 含今天
+        #expect(offsets.last == -6)  // 到 6 天前
+    }
 }
+// 验证边界标注：
+// 趋势表"今天 HRV 与对话路径 get_metric(hrv,range=1) 一致"依赖
+// 真机 HealthKit 实际采样，单测无法覆盖，属"依赖真实跑起来后才能定"。

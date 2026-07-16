@@ -3,7 +3,7 @@ import Foundation
 enum PromptBuilder {
     private static var nowDescription: String {
         let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd HH:mm EEEE"
+        df.dateFormat = "yyyy-MM-dd HH:mm:ss EEEE"
         df.locale = Locale(identifier: "zh_CN")
         return "当前时间：\(df.string(from: Date()))"
     }
@@ -72,9 +72,8 @@ enum PromptBuilder {
     }
 
     static func recordPlannerSystemPrompt() -> String {
-        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
         return """
-        你是活动记录器。当前日期：\(df.string(from: Date()))。根据用户输入，调用 log_activity 记录活动。返回 JSON：
+        你是活动记录器。\(nowDescription)。根据用户输入，调用 log_activity 记录活动。返回 JSON：
 
         {
           "tools": [{"call_id": "act", "name": "log_activity", "params": {"type": "...", "date": "yyyy-MM-dd", ...}}],
@@ -90,10 +89,8 @@ enum PromptBuilder {
     }
 
     static func plannerSystemPrompt() -> String {
-        let df = DateFormatter(); df.dateFormat = "yyyy-MM-dd"
-        let today = df.string(from: Date())
         return """
-        你是数据规划器。根据用户问题，调用工具收集数据。当前日期：\(today)。返回 JSON（每个工具调用必须有唯一 call_id）：
+        你是数据规划器。根据用户问题，调用工具收集数据。\(nowDescription)。返回 JSON（每个工具调用必须有唯一 call_id）：
 
         {
           "tools": [

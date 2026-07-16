@@ -175,7 +175,10 @@ final class MetricTool: HealthTool, @unchecked Sendable {
     }
 
     private func fmt(_ v: Double, metric: String) -> String {
-        if metric.contains("heart_rate") || metric == "rhr" || metric == "hrv" {
+        if metric == "hrv" {
+            return "\(Int(v.rounded())) ms"
+        }
+        if metric.contains("heart_rate") || metric == "rhr" {
             return "\(Int(v.rounded())) bpm"
         }
         return String(format: "%.1f", v)

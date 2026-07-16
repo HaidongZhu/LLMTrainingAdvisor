@@ -230,7 +230,7 @@ final class DashboardService {
             let byDay = await HealthDataService.dailyStatistics(store: store, id: id, options: opts, days: 7, converter: converter)
             guard !byDay.isEmpty else { continue }
             var rows = ["日期 | \(name)"]
-            for offset in HealthDataService.dayOffsetsPastExclusive(days: 6) {  // 前6天，不含今天
+            for offset in HealthDataService.dayOffsets(inclusiveDays: 7) {  // 今天~6天前
                 let day = cal.startOfDay(for: cal.date(byAdding: .day, value: offset, to: Date())!)
                 if let v = byDay[day] {
                     rows.append("\(shortDate(day)) | \(String(format: "%.0f", v))")
@@ -240,7 +240,6 @@ final class DashboardService {
         }
 
         // 今天细粒度（0点到现在）：平均心率全天连续采样，能反映今日波动曲线
-        // （RHR/HRV 采样稀疏且非连续，今日细粒度常为空，不查）
         let metricTool = MetricTool()
         let todayHrTable = await metricTool.execute(params: ["metric": "average_heart_rate", "today": "true", "output": "table"])
         let todayHrSummary = await metricTool.execute(params: ["metric": "average_heart_rate", "today": "true", "output": "summary"])

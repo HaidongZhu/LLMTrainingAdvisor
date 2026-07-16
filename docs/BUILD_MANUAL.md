@@ -140,14 +140,23 @@ sqlite3 "$ART/training.db" "SELECT COUNT(*) FROM match_schedule;"
 
 表结构：`chat_message`（对话/记录花费）、`cost_record`（趋势/训练花费，source=trend/training）、`match_schedule`、`activity_log`、`user_profile`。`sumCost()` = 两者合计。
 
-## 六、XCUITest 自测（可选）
+## 六、自测管线
 
-> ⚠️ 注意：项目 `Training.xcodeproj` 当前**没有 TrainingUITests target**（pbxproj 中只有应用本体 target，无 UI 测试 target），且 scheme 未配置 test action。因此 `dev_flow.sh selftest` / `xcodebuild test` 路径**实际无法运行**，会报 `Scheme Training is not currently configured for the test action`。此为历史遗留，待后续补建 UI test target。
+### 主路径：launch argument 驱动 SelfTestRunner
 
-### 替代方案：直接驱动 selftest（当前可用方式）
+`dev_flow.sh selftest` 使用 launch argument 直接驱动 App 内 `SelfTestRunner`，不依赖 XCUITest target。
+
+```
+dev_flow.sh selftest
+  │
+  ├─ Build + Install
+  ├─ devicectl device process launch --self-test
+  ├─ App 内 SelfTestRunner 串行跑 16 场景
+  └─ 轮询拉回日志 → 生成 report.md
+```
 
 App 启动时读取 launch argument：
-- `--self-test` → 进 `SelfTestHostView` 跑全部场景
+- `--self-test` → 进 `SelfTestHostView` 跑全部 16 场景
 - `--self-test-scenario=N` → 进 `SelfTestSingleView` 跑第 N 个场景（0 起）
 
 每个场景执行完整对话链路（Planner 真实 API → 工具真实 HealthKit 查询 → Executor 真实回复），并把结构化日志写入 App 沙盒 `Documents/selftest-N.log`：

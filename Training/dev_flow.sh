@@ -143,32 +143,38 @@ run_install() {
 }
 
 run_selftest() {
-    echo "=== 自测模式 (XCUITest) ==="
+    echo "=== 自测模式 (launch argument) ==="
     local RESULT_DIR="$SPM/artifacts/$(date +%Y%m%d_%H%M%S)"
     mkdir -p "$RESULT_DIR"
     echo "Artifacts: $RESULT_DIR"
 
-    echo "[1/3] XCUITest 运行 16 个自测场景..."
-    cd "$PROJECT"
-    xcodebuild test \
-        -project Training.xcodeproj \
-        -scheme Training \
-        -destination "platform=iOS,id=$UDID" \
-        -only-testing:TrainingUITests/TrainingUITests \
-        -allowProvisioningUpdates \
-        -resultBundlePath "$RESULT_DIR/result.xcresult" \
-        2>&1 | grep -E "Test Case.*(passed|failed)|TEST (SUCCEEDED|FAILED)" || true
+    echo "[1/4] Build + Install + 启动自测..."
+    run_install
+    xcrun devicectl device process launch \
+        --device "$UDID" \
+        "$BUNDLE" "--self-test" 2>&1 || true
 
-    echo "[2/3] 拉取自测日志..."
-    for i in {0..15}; do
-        xcrun devicectl device copy from \
-            --device "$UDID" \
-            --domain-type appDataContainer \
-            --domain-identifier "$BUNDLE" \
-            --source "Documents/selftest-${i}.log" \
-            --destination "$RESULT_DIR/selftest-${i}.log" \
-            2>/dev/null | grep -v "Enabling\|Acquired\|File received" || true
+    echo "[2/4] 等待 16 场景完成..."
+    local ATTEMPTS=80  # 80 × 15s = 20 min max
+    local DONE=0
+    for attempt in $(seq 1 $ATTEMPTS); do
+        sleep 15
+        for i in {0..15}; do
+            xcrun devicectl device copy from \
+                --device "$UDID" \
+                --domain-type appDataContainer \
+                --domain-identifier "$BUNDLE" \
+                --source "Documents/selftest-${i}.log" \
+                --destination "$RESULT_DIR/selftest-${i}.log" \
+                2>/dev/null || true
+        done
+        DONE=$(find "$RESULT_DIR" -maxdepth 1 -name "selftest-*.log" \
+            -exec grep -l "SELFTEST_DONE" {} \; 2>/dev/null | wc -l | tr -d ' ')
+        echo "  进度: $DONE/16 (轮询 $attempt/$ATTEMPTS)"
+        [ "$DONE" -ge 16 ] && { echo "  全部 16 场景完成"; break; }
     done
+
+    echo "[3/4] 汇总日志..."
     cat "$RESULT_DIR"/selftest-*.log > "$RESULT_DIR/selftest.log" 2>/dev/null || true
 
     xcrun devicectl device copy from \
@@ -178,7 +184,7 @@ run_selftest() {
         --destination "$RESULT_DIR/crash" \
         2>&1 | grep -v "Enabling\|Acquired\|File received" || true
 
-    echo "[3/3] 生成报告..."
+    echo "[4/4] 生成报告..."
     generate_report "$RESULT_DIR"
     echo "================================================"
     cat "$RESULT_DIR/selftest.log" 2>/dev/null

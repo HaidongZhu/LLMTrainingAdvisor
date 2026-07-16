@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-07-16
+
+### 修复
+
+- **趋势表纳入今天**：`collectWeeklyData` 日界从 `dayOffsetsPastExclusive` 改为 `dayOffsets(inclusiveDays: 7)`，趋势数据表含今天
+- **HRV 单位修正**：`MetricTool.fmt` 拆分 HRV→`ms`、心率→`bpm`，不再把 HRV 标为 bpm
+- **Prompt 时间戳秒级**：planner/record planner/executor 统一注入 `yyyy-MM-dd HH:mm:ss EEEE`
+
+### 自测
+
+- **XCUITest 16 场景对齐**：`TrainingUITests` 从 9 扩到 16，`dev_flow.sh` names 数组同步
+- **SelfTest API Key 前置校验**：`runAll()` 开头检查 Keychain，缺失则全标 error
+- **单测补强**：`testTrendInclusive7Days` + `hrv` ID 映射 + 真机缺口显式标注
+- 测试从 175 → 176（27 suites）
+
+### 安全
+
+- **移除硬编码 API Key**：删除 `Secrets.swift`，`AppConfig.deepSeekAPIKey` 只读 Keychain，不再兜底硬编码 key
+- **泄露 key 清理**：`AppSettings.init` 一次性清除已迁入 Keychain 的已知泄露 key
+
 ## 2026-07-07
 
 ### 新增

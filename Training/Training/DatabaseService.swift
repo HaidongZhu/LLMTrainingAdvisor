@@ -5,12 +5,14 @@ private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.sel
 
 final class DatabaseService {
     nonisolated(unsafe) static let live: DatabaseService = {
-        #if targetEnvironment(simulator) || os(macOS)
-            let dbPath = "training.db"
-        #else
-            let dbPath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first! + "/training.db"
-        #endif
-        return try! DatabaseService(databasePath: dbPath)
+        do {
+            return try DatabaseService(databasePath: DatabaseService.defaultDatabasePath())
+        } catch {
+            // Documents 打不开时再退到 Application Support，避免 try! 直接拖垮启动。
+            let fallback = DatabaseService.applicationSupportDatabasePath()
+            print("[DatabaseService] open failed at default path: \(error). fallback=\(fallback)")
+            return try! DatabaseService(databasePath: fallback)
+        }
     }()
     private var db: OpaquePointer?
     private let queue = DispatchQueue(label: "training.db.serial")
@@ -21,10 +23,32 @@ final class DatabaseService {
         return f
     }()
 
+    private static func defaultDatabasePath() -> String {
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("training.db").path
+    }
+
+    private static func applicationSupportDatabasePath() -> String {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("training.db").path
+    }
+
     init(databasePath: String) throws {
-        let result = sqlite3_open(databasePath, &db)
+        if databasePath != ":memory:" {
+            let parent = URL(fileURLWithPath: databasePath).deletingLastPathComponent()
+            try? FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        }
+        let flags = SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX
+        let result = sqlite3_open_v2(databasePath, &db, flags, nil)
         guard result == SQLITE_OK, db != nil else {
-            throw DatabaseError.openFailed(String(cString: sqlite3_errmsg(db)))
+            let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "sqlite open failed (\(result))"
+            if let db { sqlite3_close(db) }
+            self.db = nil
+            throw DatabaseError.openFailed(message)
         }
         try createTables()
         sqlite3_exec(db, "PRAGMA busy_timeout=5000;", nil, nil, nil)

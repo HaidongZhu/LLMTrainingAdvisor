@@ -104,7 +104,6 @@ struct SettingsView: View {
                     } label: {
                         Label(showSaved ? "已保存" : "保存", systemImage: showSaved ? "checkmark.circle.fill" : "square.and.arrow.down")
                     }
-                    .disabled(!isKeyUnlocked && modelUnchanged)
 
                     Button {
                         Task { await testConnection() }
@@ -168,12 +167,6 @@ struct SettingsView: View {
         }
     }
 
-    private var modelUnchanged: Bool {
-        let trimmed = modelInput.trimmingCharacters(in: .whitespaces)
-        let effective = trimmed.isEmpty ? settings.provider.defaultModel : trimmed
-        return effective == settings.model
-    }
-
     /// 已解锁且输入了新 Key，或已有存储 Key（测试/余额可不露出明文）。
     private var canUseStoredOrInputKey: Bool {
         if isKeyUnlocked, !keyInput.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -212,17 +205,37 @@ struct SettingsView: View {
 
     private func save() {
         let trimmedModel = modelInput.trimmingCharacters(in: .whitespaces)
-        settings.model = trimmedModel.isEmpty ? settings.provider.defaultModel : trimmedModel
+        let nextModel = trimmedModel.isEmpty ? settings.provider.defaultModel : trimmedModel
+        let modelChanged = nextModel != settings.model
+        settings.model = nextModel
 
         if isKeyUnlocked {
             let typed = keyInput.trimmingCharacters(in: .whitespacesAndNewlines)
             if !typed.isEmpty {
-                settings.saveAPIKey(typed)
+                if settings.saveAPIKey(typed) {
+                    statusIsError = false
+                    statusMessage = "已保存 Key 与模型"
+                } else {
+                    statusIsError = true
+                    statusMessage = "❌ Key 写入 Keychain 失败"
+                    return
+                }
+            } else {
+                statusIsError = false
+                statusMessage = modelChanged ? "已保存模型（未改 Key）" : "已保存模型"
             }
             lockKeyEditor()
+        } else if modelChanged {
+            statusIsError = false
+            statusMessage = "已保存模型。修改 Key 请先解锁。"
+        } else if settings.hasAPIKey {
+            statusIsError = false
+            statusMessage = "Key 已在 Keychain 中，无需再保存。修改请先解锁。"
+        } else {
+            statusIsError = true
+            statusMessage = "请先解锁并填写 API Key 后再保存"
         }
 
-        statusMessage = ""
         showSaved = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showSaved = false }
     }

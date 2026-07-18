@@ -11,6 +11,10 @@ struct SettingsView: View {
     @State private var isTesting = false
     @State private var isCheckingBalance = false
     @State private var showSaved = false
+    /// 通过 Face ID / 触控 ID / 设备密码后，才允许查看或修改完整 Key。
+    @State private var isKeyUnlocked = false
+    @State private var isAuthenticating = false
+    @State private var revealKeyPlaintext = false
 
     var body: some View {
         NavigationStack {
@@ -20,7 +24,7 @@ struct SettingsView: View {
                         get: { settings.provider },
                         set: { newValue in
                             settings.provider = newValue
-                            keyInput = settings.apiKey
+                            lockKeyEditor()
                             modelInput = settings.model
                             statusMessage = ""
                         }
@@ -37,9 +41,6 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    SecureField("sk-...", text: $keyInput)
-                        .noAutoCapitalize()
-                        .autocorrectionDisabled()
                     HStack {
                         Text("当前状态").foregroundColor(.secondary)
                         Spacer()
@@ -47,10 +48,48 @@ struct SettingsView: View {
                             .foregroundColor(settings.hasAPIKey ? .primary : .orange)
                             .font(.callout.monospaced())
                     }
+
+                    if isKeyUnlocked {
+                        Group {
+                            if revealKeyPlaintext {
+                                TextField("sk-...", text: $keyInput)
+                            } else {
+                                SecureField("sk-...", text: $keyInput)
+                            }
+                        }
+                        .noAutoCapitalize()
+                        .autocorrectionDisabled()
+                        .textContentType(.password)
+                        .font(.body.monospaced())
+
+                        Toggle("显示完整 Key", isOn: $revealKeyPlaintext)
+
+                        Button {
+                            lockKeyEditor()
+                        } label: {
+                            Label("锁定 Key", systemImage: "lock.fill")
+                        }
+                    } else {
+                        Button {
+                            Task { await unlockKeyEditor() }
+                        } label: {
+                            HStack {
+                                Label(
+                                    "使用\(BiometricAuth.biometryDisplayName)解锁",
+                                    systemImage: "faceid"
+                                )
+                                if isAuthenticating {
+                                    Spacer()
+                                    ProgressView().scaleEffect(0.8)
+                                }
+                            }
+                        }
+                        .disabled(isAuthenticating || !BiometricAuth.canAuthenticate)
+                    }
                 } header: {
                     Text("\(settings.provider.displayName) API Key")
                 } footer: {
-                    Text("Key 加密存储于设备 Keychain，保存后立即生效。")
+                    Text("Key 加密存储于设备 Keychain。查看或修改完整 Key 需通过 \(BiometricAuth.biometryDisplayName) 或设备密码验证。")
                 }
 
                 Section("模型") {
@@ -65,6 +104,7 @@ struct SettingsView: View {
                     } label: {
                         Label(showSaved ? "已保存" : "保存", systemImage: showSaved ? "checkmark.circle.fill" : "square.and.arrow.down")
                     }
+                    .disabled(!isKeyUnlocked && modelUnchanged)
 
                     Button {
                         Task { await testConnection() }
@@ -74,7 +114,7 @@ struct SettingsView: View {
                             if isTesting { Spacer(); ProgressView().scaleEffect(0.8) }
                         }
                     }
-                    .disabled(isTesting || keyInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(isTesting || !canUseStoredOrInputKey)
 
                     if settings.provider == .deepseek {
                         Button {
@@ -85,15 +125,16 @@ struct SettingsView: View {
                                 if isCheckingBalance { Spacer(); ProgressView().scaleEffect(0.8) }
                             }
                         }
-                        .disabled(isCheckingBalance || keyInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(isCheckingBalance || !canUseStoredOrInputKey)
                     }
 
                     if settings.hasAPIKey {
                         Button(role: .destructive) {
-                            clearKey()
+                            Task { await clearKeyAfterAuth() }
                         } label: {
                             Label("清除 Key", systemImage: "trash")
                         }
+                        .disabled(isAuthenticating)
                     }
                 }
 
@@ -118,24 +159,88 @@ struct SettingsView: View {
                 }
             }
             .onAppear {
-                keyInput = settings.apiKey
+                lockKeyEditor()
                 modelInput = settings.model
+            }
+            .onDisappear {
+                lockKeyEditor()
             }
         }
     }
 
-    private func save() {
-        settings.saveAPIKey(keyInput)
+    private var modelUnchanged: Bool {
         let trimmed = modelInput.trimmingCharacters(in: .whitespaces)
-        settings.model = trimmed.isEmpty ? settings.provider.defaultModel : trimmed
+        let effective = trimmed.isEmpty ? settings.provider.defaultModel : trimmed
+        return effective == settings.model
+    }
+
+    /// 已解锁且输入了新 Key，或已有存储 Key（测试/余额可不露出明文）。
+    private var canUseStoredOrInputKey: Bool {
+        if isKeyUnlocked, !keyInput.trimmingCharacters(in: .whitespaces).isEmpty {
+            return true
+        }
+        return settings.hasAPIKey
+    }
+
+    private func resolveKeyForRequest() -> String {
+        let typed = keyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isKeyUnlocked, !typed.isEmpty { return typed }
+        return settings.apiKey
+    }
+
+    private func unlockKeyEditor() async {
+        isAuthenticating = true
+        statusMessage = ""
+        defer { isAuthenticating = false }
+        do {
+            try await BiometricAuth.authenticateToUnlockAPIKey()
+            isKeyUnlocked = true
+            keyInput = settings.apiKey
+            statusIsError = false
+            statusMessage = "已解锁，可查看或修改 Key"
+        } catch {
+            statusIsError = true
+            statusMessage = "❌ \(error.localizedDescription)"
+        }
+    }
+
+    private func lockKeyEditor() {
+        isKeyUnlocked = false
+        revealKeyPlaintext = false
+        keyInput = ""
+    }
+
+    private func save() {
+        let trimmedModel = modelInput.trimmingCharacters(in: .whitespaces)
+        settings.model = trimmedModel.isEmpty ? settings.provider.defaultModel : trimmedModel
+
+        if isKeyUnlocked {
+            let typed = keyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !typed.isEmpty {
+                settings.saveAPIKey(typed)
+            }
+            lockKeyEditor()
+        }
+
         statusMessage = ""
         showSaved = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showSaved = false }
     }
 
-    private func clearKey() {
+    private func clearKeyAfterAuth() async {
+        if !isKeyUnlocked {
+            isAuthenticating = true
+            defer { isAuthenticating = false }
+            do {
+                try await BiometricAuth.authenticateToUnlockAPIKey()
+            } catch {
+                statusIsError = true
+                statusMessage = "❌ \(error.localizedDescription)"
+                return
+            }
+        }
         settings.clearAPIKey()
-        keyInput = ""
+        lockKeyEditor()
         statusMessage = "已清除 API Key"
         statusIsError = false
     }
@@ -144,7 +249,7 @@ struct SettingsView: View {
     private func testConnection() async {
         isTesting = true
         statusMessage = ""
-        let key = keyInput.trimmingCharacters(in: .whitespaces)
+        let key = resolveKeyForRequest()
         let model = modelInput.trimmingCharacters(in: .whitespaces).isEmpty
             ? settings.provider.defaultModel
             : modelInput.trimmingCharacters(in: .whitespaces)
@@ -174,7 +279,7 @@ struct SettingsView: View {
     private func checkBalance() async {
         isCheckingBalance = true
         statusMessage = ""
-        let key = keyInput.trimmingCharacters(in: .whitespaces)
+        let key = resolveKeyForRequest()
         do {
             let balance = try await CostTracker.shared.fetchBalance(apiKey: key)
             statusIsError = false

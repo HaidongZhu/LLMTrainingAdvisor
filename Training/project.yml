@@ -32,3 +32,4 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         INFOPLIST_KEY_NSHealthShareUsageDescription: "Training reads your Health data (steps, heart rate, workouts, sleep, etc.) to generate personalized training insights and recovery advice."
         INFOPLIST_KEY_NSHealthUpdateUsageDescription: "Training may log workouts and activity to Health."
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Training uses Face ID to protect viewing and editing of your API Key."

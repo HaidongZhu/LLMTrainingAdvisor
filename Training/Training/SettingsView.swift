@@ -16,6 +16,27 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
+                    Picker("提供商", selection: Binding(
+                        get: { settings.provider },
+                        set: { newValue in
+                            settings.provider = newValue
+                            keyInput = settings.apiKey
+                            modelInput = settings.model
+                            statusMessage = ""
+                        }
+                    )) {
+                        ForEach(LLMProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                } header: {
+                    Text("LLM 提供商")
+                } footer: {
+                    Text("DeepSeek 与 OpenAI 的 Key / 模型各自独立保存，切换后互不影响。")
+                }
+
+                Section {
                     SecureField("sk-...", text: $keyInput)
                         .noAutoCapitalize()
                         .autocorrectionDisabled()
@@ -27,13 +48,13 @@ struct SettingsView: View {
                             .font(.callout.monospaced())
                     }
                 } header: {
-                    Text("DeepSeek API Key")
+                    Text("\(settings.provider.displayName) API Key")
                 } footer: {
                     Text("Key 加密存储于设备 Keychain，保存后立即生效。")
                 }
 
                 Section("模型") {
-                    TextField(AppConfig.defaultModel, text: $modelInput)
+                    TextField(settings.provider.defaultModel, text: $modelInput)
                         .noAutoCapitalize()
                         .autocorrectionDisabled()
                 }
@@ -55,15 +76,17 @@ struct SettingsView: View {
                     }
                     .disabled(isTesting || keyInput.trimmingCharacters(in: .whitespaces).isEmpty)
 
-                    Button {
-                        Task { await checkBalance() }
-                    } label: {
-                        HStack {
-                            Label("查询余额", systemImage: "yensign.circle")
-                            if isCheckingBalance { Spacer(); ProgressView().scaleEffect(0.8) }
+                    if settings.provider == .deepseek {
+                        Button {
+                            Task { await checkBalance() }
+                        } label: {
+                            HStack {
+                                Label("查询余额", systemImage: "yensign.circle")
+                                if isCheckingBalance { Spacer(); ProgressView().scaleEffect(0.8) }
+                            }
                         }
+                        .disabled(isCheckingBalance || keyInput.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                    .disabled(isCheckingBalance || keyInput.trimmingCharacters(in: .whitespaces).isEmpty)
 
                     if settings.hasAPIKey {
                         Button(role: .destructive) {
@@ -103,7 +126,8 @@ struct SettingsView: View {
 
     private func save() {
         settings.saveAPIKey(keyInput)
-        settings.model = modelInput.trimmingCharacters(in: .whitespaces).isEmpty ? AppConfig.defaultModel : modelInput
+        let trimmed = modelInput.trimmingCharacters(in: .whitespaces)
+        settings.model = trimmed.isEmpty ? settings.provider.defaultModel : trimmed
         statusMessage = ""
         showSaved = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { showSaved = false }
@@ -116,13 +140,28 @@ struct SettingsView: View {
         statusIsError = false
     }
 
-    /// 用输入框当前 key 调 balance 接口验证连通性（不消耗 token）。
+    /// DeepSeek 用 balance 接口；OpenAI 用一次极短 chat 验证密钥。
     private func testConnection() async {
         isTesting = true
         statusMessage = ""
         let key = keyInput.trimmingCharacters(in: .whitespaces)
+        let model = modelInput.trimmingCharacters(in: .whitespaces).isEmpty
+            ? settings.provider.defaultModel
+            : modelInput.trimmingCharacters(in: .whitespaces)
         do {
-            _ = try await CostTracker.shared.fetchBalance(apiKey: key)
+            switch settings.provider {
+            case .deepseek:
+                _ = try await CostTracker.shared.fetchBalance(apiKey: key)
+            case .openai:
+                let client = OpenAIClient(apiKey: key)
+                _ = try await client.chat(
+                    model: model,
+                    messages: [["role": "user", "content": "ping"]],
+                    temperature: 0,
+                    maxTokens: 16,
+                    timeoutInterval: 30
+                )
+            }
             statusIsError = false
             statusMessage = "✅ 连接正常，密钥有效"
         } catch {
@@ -156,6 +195,16 @@ struct SettingsView: View {
             }
         }
         if case CostTrackerError.networkError = error {
+            return "网络错误，请检查连接"
+        }
+        if case DeepSeekClientError.httpError(let code, _) = error {
+            switch code {
+            case 401: return "密钥无效 (401)"
+            case 403: return "无权限 (403)"
+            default: return "HTTP \(code)"
+            }
+        }
+        if case DeepSeekClientError.networkError = error {
             return "网络错误，请检查连接"
         }
         return error.localizedDescription

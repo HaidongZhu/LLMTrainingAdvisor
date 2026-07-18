@@ -72,7 +72,7 @@ final class SelfTestRunner {
         registry.register(MatchScheduleTool(store: db))
         registry.register(SetUserProfileTool(store: db))
         return ChatViewModel(
-            deepSeekService: DeepSeekClient(keyProvider: { AppConfig.deepSeekAPIKey }),
+            deepSeekService: CurrentLLMClient(),
             messageStore: db,
             costTracker: CostTracker.shared,
             toolRegistry: registry
@@ -99,7 +99,7 @@ final class SelfTestRunner {
         registry.register(MatchScheduleTool(store: db))
         registry.register(SetUserProfileTool(store: db))
         return ChatViewModel(
-            deepSeekService: DeepSeekClient(keyProvider: { AppConfig.deepSeekAPIKey }),
+            deepSeekService: CurrentLLMClient(),
             messageStore: db,
             costTracker: CostTracker.shared,
             toolRegistry: registry
@@ -119,7 +119,7 @@ final class SelfTestRunner {
             SelfTestResult(name: $1.name, index: $0, status: .pending, detail: "", duration: "")
         }
 
-        guard !AppConfig.deepSeekAPIKey.isEmpty else {
+        guard !AppConfig.apiKey.isEmpty else {
             for i in scenarios.indices {
                 results[i].status = .error
                 results[i].detail = "API Key 缺失"

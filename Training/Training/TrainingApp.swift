@@ -8,6 +8,7 @@ import SwiftUI
 @main
 struct TrainingApp: App {
     init() {
+        AppSettings.seedKeysFromEnvironmentIfNeeded()
         clearDashboardCacheIfNeeded()
         AppVersion.writeMarker()
     }

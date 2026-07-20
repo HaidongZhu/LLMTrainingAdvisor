@@ -49,21 +49,127 @@ struct TokenUsage: Codable {
     }
 }
 
-enum AppConfig {
-    static let defaultModel = "deepseek-v4-pro"
-    static let apiKeyAccount = "deepseek_api_key"
-    static let modelDefaultsKey = "deepseek_model"
-    static let isSelfTestMode = false
+enum LLMProvider: String, CaseIterable, Identifiable, Sendable {
+    case deepseek
+    case openai
 
-    /// 运行时 API Key，线程安全（只读 Keychain，空则返回空串）。
-    /// 供 DeepSeekClient 的 keyProvider 在任意线程同步读取。
-    static var deepSeekAPIKey: String {
-        KeychainStore.read(forKey: apiKeyAccount) ?? ""
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .deepseek: return "DeepSeek"
+        case .openai: return "OpenAI"
+        }
     }
 
-    /// 运行时模型名，用户可在设置页修改（存 UserDefaults）。
-    static var deepSeekModel: String {
-        UserDefaults.standard.string(forKey: modelDefaultsKey) ?? defaultModel
+    var defaultModel: String {
+        switch self {
+        case .deepseek: return "deepseek-v4-pro"
+        case .openai: return "gpt-5.4-mini"
+        }
+    }
+
+    var apiKeyAccount: String {
+        switch self {
+        case .deepseek: return "deepseek_api_key"
+        case .openai: return "openai_api_key"
+        }
+    }
+
+    var modelDefaultsKey: String {
+        switch self {
+        case .deepseek: return "deepseek_model"
+        case .openai: return "openai_model"
+        }
+    }
+
+    var chatCompletionsURL: URL {
+        switch self {
+        case .deepseek: return URL(string: "https://api.deepseek.com/chat/completions")!
+        case .openai: return URL(string: "https://api.openai.com/v1/chat/completions")!
+        }
+    }
+}
+
+enum AppConfig {
+    static let providerDefaultsKey = "llm_provider"
+    static let isSelfTestMode = false
+
+    /// 兼容旧代码：默认 DeepSeek 模型名。
+    static let defaultModel = LLMProvider.deepseek.defaultModel
+    static let apiKeyAccount = LLMProvider.deepseek.apiKeyAccount
+    static let modelDefaultsKey = LLMProvider.deepseek.modelDefaultsKey
+
+    /// 当前选中的 LLM 提供商（UserDefaults）。
+    static var provider: LLMProvider {
+        get {
+            let raw = UserDefaults.standard.string(forKey: providerDefaultsKey) ?? LLMProvider.deepseek.rawValue
+            return LLMProvider(rawValue: raw) ?? .deepseek
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: providerDefaultsKey)
+        }
+    }
+
+    /// 当前提供商的 API Key（Keychain，线程安全只读）。
+    static var apiKey: String {
+        KeychainStore.read(forKey: provider.apiKeyAccount) ?? ""
+    }
+
+    /// 当前提供商的模型名（UserDefaults）。
+    static var model: String {
+        UserDefaults.standard.string(forKey: provider.modelDefaultsKey) ?? provider.defaultModel
+    }
+
+    /// 兼容旧调用点。
+    static var deepSeekAPIKey: String { apiKey }
+    static var deepSeekModel: String { model }
+
+    /// 按当前设置构造可用的 LLM 客户端。
+    static func makeLLMClient() -> DeepSeekService {
+        switch provider {
+        case .deepseek:
+            return DeepSeekClient(keyProvider: { AppConfig.apiKey })
+        case .openai:
+            return OpenAIClient(keyProvider: { AppConfig.apiKey })
+        }
+    }
+}
+
+/// 每次请求按当前 AppConfig.provider 转发，设置页切换后无需重启即可生效。
+final class CurrentLLMClient: DeepSeekService, @unchecked Sendable {
+    func chat(
+        model: String,
+        messages: [[String: String]],
+        temperature: Double,
+        maxTokens: Int,
+        timeoutInterval: TimeInterval
+    ) async throws -> (content: String, usage: TokenUsage) {
+        try await AppConfig.makeLLMClient().chat(
+            model: model,
+            messages: messages,
+            temperature: temperature,
+            maxTokens: maxTokens,
+            timeoutInterval: timeoutInterval
+        )
+    }
+
+    func chatStream(
+        model: String,
+        messages: [[String: String]],
+        temperature: Double,
+        maxTokens: Int,
+        timeoutInterval: TimeInterval,
+        onToken: @escaping @Sendable (String) async -> Void
+    ) async throws -> TokenUsage {
+        try await AppConfig.makeLLMClient().chatStream(
+            model: model,
+            messages: messages,
+            temperature: temperature,
+            maxTokens: maxTokens,
+            timeoutInterval: timeoutInterval,
+            onToken: onToken
+        )
     }
 }
 

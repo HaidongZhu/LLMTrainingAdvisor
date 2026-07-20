@@ -213,7 +213,7 @@ final class ChatViewModel {
         registry.register(SetUserProfileTool(store: db))
 
         self.init(
-            deepSeekService: deepSeekService ?? DeepSeekClient(keyProvider: { AppConfig.deepSeekAPIKey }),
+            deepSeekService: deepSeekService ?? CurrentLLMClient(),
             messageStore: db,
             costTracker: costTracker,
             toolRegistry: registry

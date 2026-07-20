@@ -2,6 +2,8 @@
 DerivedData/
 *.xcodeproj/
 xcuserdata/
+.swiftpm/
+.DS_Store
 *.db
 *.db-shm
 *.db-wal
